@@ -28,6 +28,7 @@ func RegisterRoutes(api fiber.Router, pool *pgxpool.Pool, authService *auth.Serv
 	api.Get("/tickets/:id", authService.RequireAuth(), handler.detail)
 	api.Post("/tickets", authService.RequireAuth(), handler.create)
 	api.Post("/tickets/:id/accept", authService.RequireAuth(), handler.accept)
+	api.Post("/tickets/:id/assign", authService.RequireAuth(), handler.assign)
 }
 
 type handler struct {
@@ -108,7 +109,61 @@ func (handler *handler) accept(c fiber.Ctx) error {
 	}{Ticket: ticket})
 }
 
+func (handler *handler) assign(c fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return invalidTicketDetailIDError()
+	}
+
+	var input AssignRequest
+	decoder := json.NewDecoder(bytes.NewReader(c.Body()))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		return invalidAssignmentRequestError()
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return invalidAssignmentRequestError()
+	}
+	validated, err := validateAssignRequest(input)
+	if err != nil {
+		return invalidAssignmentRequestError()
+	}
+
+	principal, ok := auth.CurrentPrincipal(c)
+	if !ok {
+		return &httperror.AppError{
+			Code:       "unauthenticated",
+			Message:    "Authentication required",
+			HTTPStatus: fiber.StatusUnauthorized,
+		}
+	}
+	ticket, err := handler.service.Assign(c.Context(), id, validated, principal.User.ID)
+	if errors.Is(err, ErrTicketNotFound) {
+		return &httperror.AppError{Code: "ticket_not_found", Message: "Ticket not found", HTTPStatus: fiber.StatusNotFound}
+	}
+	if errors.Is(err, ErrTicketClosed) {
+		return &httperror.AppError{Code: "ticket_closed", Message: "Ticket is closed", HTTPStatus: fiber.StatusConflict}
+	}
+	if errors.Is(err, ErrDepartmentUnavailable) {
+		return &httperror.AppError{Code: "department_unavailable", Message: "Department is unavailable", HTTPStatus: fiber.StatusBadRequest}
+	}
+	if errors.Is(err, ErrUserUnavailable) {
+		return &httperror.AppError{Code: "user_unavailable", Message: "User is unavailable", HTTPStatus: fiber.StatusBadRequest}
+	}
+	if err != nil {
+		return err
+	}
+	return c.Status(fiber.StatusOK).JSON(struct {
+		Ticket Ticket `json:"ticket"`
+	}{Ticket: ticket})
+}
+
 func invalidTicketDetailIDError() error {
+	return &httperror.AppError{Code: "invalid_request", Message: "Invalid request", HTTPStatus: fiber.StatusBadRequest}
+}
+
+func invalidAssignmentRequestError() error {
 	return &httperror.AppError{Code: "invalid_request", Message: "Invalid request", HTTPStatus: fiber.StatusBadRequest}
 }
 

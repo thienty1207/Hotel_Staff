@@ -37,3 +37,10 @@ func (service *Service) Accept(ctx context.Context, ticketID int64, actor Identi
 	}
 	return service.repository.Accept(ctx, ticketID, actor)
 }
+
+func (service *Service) Assign(ctx context.Context, ticketID int64, request AssignRequest, actorUserID int64) (Ticket, error) {
+	if service == nil || service.repository == nil {
+		return Ticket{}, errTicketServiceNotConfigured
+	}
+	return service.repository.Assign(ctx, ticketID, request, actorUserID)
+}
