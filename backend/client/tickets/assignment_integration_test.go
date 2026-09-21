@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -188,6 +189,93 @@ func TestAssignTicketEndpointPersistsSetsWithoutChangingLifecycle(t *testing.T) 
 			}
 		}
 	})
+}
+
+func TestAssignTicketConcurrentReplacementsSerializeOnTicketRow(t *testing.T) {
+	pool, ctx := openTicketsTestPool(t)
+	fixture := seedAssignmentFixture(t, pool, ctx)
+	server := newTicketsApp(pool)
+	start := make(chan struct{})
+	responses := make(chan *http.Response, 2)
+	var waitGroup sync.WaitGroup
+
+	bodies := []string{
+		fmt.Sprintf("{\"department_ids\":[%d],\"user_ids\":[%d]}", fixture.FirstDepartmentID, fixture.FirstUserID),
+		fmt.Sprintf("{\"department_ids\":[%d],\"user_ids\":[%d]}", fixture.SecondDepartmentID, fixture.SecondUserID),
+	}
+	for _, body := range bodies {
+		body := body
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			responses <- requestAssignTicket(t, server, fixture.PendingTicketID, fixture.ActorToken, body)
+		}()
+	}
+	close(start)
+	waitGroup.Wait()
+	close(responses)
+
+	for response := range responses {
+		var result ticketDetailResponse
+		decodeTicketResponse(t, response, &result)
+		response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("concurrent assignment returned status %d: %+v", response.StatusCode, result)
+		}
+	}
+
+	departmentRows, err := pool.Query(ctx, "SELECT department_id FROM ticket_assigned_departments WHERE ticket_id = $1 ORDER BY department_id", fixture.PendingTicketID)
+	if err != nil {
+		t.Fatalf("read concurrent department assignments: %v", err)
+	}
+	var departmentIDs []int64
+	for departmentRows.Next() {
+		var id int64
+		if err := departmentRows.Scan(&id); err != nil {
+			departmentRows.Close()
+			t.Fatalf("scan concurrent department assignment: %v", err)
+		}
+		departmentIDs = append(departmentIDs, id)
+	}
+	if err := departmentRows.Err(); err != nil {
+		departmentRows.Close()
+		t.Fatalf("iterate concurrent department assignments: %v", err)
+	}
+	departmentRows.Close()
+
+	userRows, err := pool.Query(ctx, "SELECT user_id FROM ticket_assigned_users WHERE ticket_id = $1 ORDER BY user_id", fixture.PendingTicketID)
+	if err != nil {
+		t.Fatalf("read concurrent user assignments: %v", err)
+	}
+	var userIDs []int64
+	for userRows.Next() {
+		var id int64
+		if err := userRows.Scan(&id); err != nil {
+			userRows.Close()
+			t.Fatalf("scan concurrent user assignment: %v", err)
+		}
+		userIDs = append(userIDs, id)
+	}
+	if err := userRows.Err(); err != nil {
+		userRows.Close()
+		t.Fatalf("iterate concurrent user assignments: %v", err)
+	}
+	userRows.Close()
+
+	firstSet := equalInt64s(departmentIDs, []int64{fixture.FirstDepartmentID}) && equalInt64s(userIDs, []int64{fixture.FirstUserID})
+	secondSet := equalInt64s(departmentIDs, []int64{fixture.SecondDepartmentID}) && equalInt64s(userIDs, []int64{fixture.SecondUserID})
+	if !firstSet && !secondSet {
+		t.Fatalf("concurrent assignments left a partial or duplicate state: departments=%v users=%v", departmentIDs, userIDs)
+	}
+
+	var activityCount int
+	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM ticket_activity WHERE ticket_id = $1 AND action = 'assignment_updated'", fixture.PendingTicketID).Scan(&activityCount); err != nil {
+		t.Fatalf("count concurrent assignment activities: %v", err)
+	}
+	if activityCount != 2 {
+		t.Fatalf("expected one activity for each committed replacement, got %d", activityCount)
+	}
 }
 
 type assignmentLifecycle struct {
