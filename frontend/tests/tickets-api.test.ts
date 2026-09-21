@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { acceptTicket, listTickets } from '../src/lib/client/tickets/api';
+import { acceptTicket, assignTicket, listTickets } from '../src/lib/client/tickets/api';
 
 const originalFetch = globalThis.fetch;
 
@@ -203,4 +203,75 @@ test('acceptTicket rejects malformed IDs before making a request', async () => {
 	await expect(acceptTicket(0)).rejects.toMatchObject({ kind: 'invalid_input' });
 	await expect(acceptTicket(Number.MAX_SAFE_INTEGER + 1)).rejects.toMatchObject({ kind: 'invalid_input' });
 	expect(requests).toBe(0);
+});
+
+test('assignTicket sends the canonical assignment body and parses the updated ticket', async () => {
+	const assignedTicket = {
+		...page.tickets[0],
+		assigned_departments: [{ id: 2, code: 'HK', name: 'Housekeeping' }],
+		assigned_users: [{ id: 20, full_name: 'Staff Member', department_code: 'HK' }],
+		updated_at: '2026-09-21T08:05:00Z'
+	};
+	let requestInput: RequestInfo | URL | undefined;
+	let requestInit: RequestInit | undefined;
+	globalThis.fetch = async (input, init) => {
+		requestInput = input;
+		requestInit = init;
+		return new Response(JSON.stringify({ ticket: assignedTicket }), { status: 200 });
+	};
+
+	const result = await assignTicket(101, { department_ids: [2], user_ids: [20] });
+
+	expect(result).toEqual(assignedTicket);
+	expect(String(requestInput)).toBe('/api/v1/tickets/101/assign');
+	expect(requestInit?.method).toBe('POST');
+	expect(requestInit?.credentials).toBe('include');
+	expect(requestInit?.headers).toEqual({ 'Content-Type': 'application/json' });
+	expect(requestInit?.body).toBe(JSON.stringify({ department_ids: [2], user_ids: [20] }));
+});
+
+test('assignTicket maps target, lifecycle, authentication, and retryable failures without retrying', async () => {
+	const cases = [
+		{ status: 400, code: 'department_unavailable', kind: 'invalid_input' },
+		{ status: 400, code: 'user_unavailable', kind: 'invalid_input' },
+		{ status: 400, code: 'invalid_request', kind: 'invalid_input' },
+		{ status: 401, code: 'unauthenticated', kind: 'unauthenticated' },
+		{ status: 404, code: 'ticket_not_found', kind: 'not_found' },
+		{ status: 409, code: 'ticket_closed', kind: 'closed' },
+		{ status: 503, code: 'internal_server_error', kind: 'retryable' }
+	] as const;
+
+	for (const expected of cases) {
+		let requests = 0;
+		globalThis.fetch = async () => {
+			requests += 1;
+			return new Response(JSON.stringify({ error: { code: expected.code } }), { status: expected.status });
+		};
+		const expectedError = { kind: expected.kind, status: expected.status } as Record<string, unknown>;
+		if (expected.status !== 503) {
+			expectedError.code = expected.code;
+		}
+		await expect(assignTicket(101, { department_ids: [], user_ids: [] })).rejects.toMatchObject(expectedError);
+		expect(requests).toBe(1);
+	}
+});
+
+test('assignTicket rejects malformed successful payloads, bad IDs, duplicate IDs, and network failures safely', async () => {
+	globalThis.fetch = async () => new Response(JSON.stringify({ ticket: { ...page.tickets[0], assigned_departments: 'bad' } }), { status: 200 });
+	await expect(assignTicket(101, { department_ids: [], user_ids: [] })).rejects.toMatchObject({ kind: 'retryable', status: 200 });
+
+	let requests = 0;
+	globalThis.fetch = async () => {
+		requests += 1;
+		return new Response('{}', { status: 500 });
+	};
+	await expect(assignTicket(0, { department_ids: [], user_ids: [] })).rejects.toMatchObject({ kind: 'invalid_input' });
+	await expect(assignTicket(101, { department_ids: [2, 2], user_ids: [] })).rejects.toMatchObject({ kind: 'invalid_input' });
+	await expect(assignTicket(101, { department_ids: [], user_ids: [0] })).rejects.toMatchObject({ kind: 'invalid_input' });
+	expect(requests).toBe(0);
+
+	globalThis.fetch = async () => {
+		throw new Error('offline');
+	};
+	await expect(assignTicket(101, { department_ids: [], user_ids: [] })).rejects.toMatchObject({ kind: 'retryable' });
 });

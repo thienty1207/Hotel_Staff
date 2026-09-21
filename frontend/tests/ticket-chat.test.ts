@@ -363,7 +363,7 @@ test('Chat summary and created activity follow the compact Sara conversation hie
 	expect(styles).not.toContain('.ticket-chat-event-details');
 });
 
-test('desktop rows expose isolated action buttons while mobile cards keep chat-only actions', async () => {
+test('desktop rows expose assignment actions while mobile cards keep chat-only actions', async () => {
 	const page = await Bun.file(new URL('../src/routes/+page.svelte', import.meta.url)).text();
 	const table = page.slice(page.indexOf('<div class="desktop-ticket-table">'), page.indexOf('<div class="mobile-ticket-cards">'));
 	const mobileCards = page.slice(page.indexOf('<div class="mobile-ticket-cards">'), page.indexOf('{#if page.has_more'));
@@ -372,8 +372,10 @@ test('desktop rows expose isolated action buttons while mobile cards keep chat-o
 	expect(table).toContain('ticket-row-action-button');
 	expect(table).toContain('handleRowAccept(event, ticket.id)');
 	expect(table).toContain('disabled={ticket.status !== \'pending\' || isAcceptInFlight(ticket.id)}');
+	expect(table).toContain('handleRowAssign(event, ticket.id)');
+	expect(table).toContain('disabled={ticket.status === \'closed\' || isAssignInFlight(ticket.id)}');
 	expect(table).toContain('ticket-location-value');
-	expect(table).toMatch(/>\s*Assign\s*<\/button>/);
+	expect(table).toContain('Assigning…');
 	expect(table).toMatch(/>\s*Close\s*<\/button>/);
 	expect(page).toContain('function handleRowAction(event: MouseEvent)');
 	expect(page).toContain('event.stopPropagation();');
@@ -521,20 +523,39 @@ test('Ticket Chat keeps the summary compact and uses real persisted activity onl
 	expect(chat).not.toContain('due_at');
 });
 
-test('Ticket Chat activates Accept while keeping Assign and Close non-mutating shells', async () => {
+test('Ticket Chat activates Accept and Assign while keeping Close non-mutating', async () => {
 	const chat = await Bun.file(new URL('../src/lib/components/TicketChat.svelte', import.meta.url)).text();
 
 	expect(chat).toContain('aria-label="Attach file"');
 	expect(chat).toContain('aria-label="Voice message"');
 	expect(chat).toContain('aria-label="More message options"');
 	expect(chat).toContain('Accept');
-	expect(chat).toContain('>Assign</button>');
+	expect(chat).toContain('Assigning…');
 	expect(chat).toContain('>Close</button>');
 	expect(chat).toContain('onclick={onAccept}');
+	expect(chat).toContain('onclick={onAssign}');
 	expect(chat).toContain('acceptInFlight');
+	expect(chat).toContain('assignInFlight');
 	expect(chat).toContain('onRetryAccept');
-	expect(chat).not.toContain('onclick={onAssign}');
 	expect(chat).not.toContain('onclick={onCloseTicket}');
+});
+
+test('Assignment dialog uses authoritative ticket state, safe lookup lists, and a semantic save flow', async () => {
+	const dialog = await Bun.file(new URL('../src/lib/components/AssignTicketDialog.svelte', import.meta.url)).text();
+	const page = await Bun.file(new URL('../src/routes/+page.svelte', import.meta.url)).text();
+
+	expect(dialog).toContain('getTicket(nextTicketID)');
+	expect(dialog).toContain('getDepartments()');
+	expect(dialog).toContain('getUsers({ limit: 100 })');
+	expect(dialog).toContain('selectedDepartmentIDs');
+	expect(dialog).toContain('selectedUserIDs');
+	expect(dialog).toContain('userSearchSequence');
+	expect(dialog).toContain('onSubmit(ticketID');
+	expect(dialog).toContain('type="checkbox"');
+	expect(dialog).toContain('Save assignment');
+	expect(page).toContain('TicketAssignmentController');
+	expect(page).toContain('function openAssignDialog(ticketID: number, origin: AssignmentOrigin)');
+	expect(page).toContain('onSubmit={handleAssignSubmit}');
 });
 
 test('Accept patches only the submitted ticket and cannot replace a newer Chat selection', async () => {

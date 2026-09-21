@@ -53,6 +53,11 @@ export type CreateTicketRequest = {
 	due_at: string | null;
 };
 
+export type AssignTicketRequest = {
+	department_ids: number[];
+	user_ids: number[];
+};
+
 export type TicketCursor = {
 	before_created_at: string;
 	before_id: number;
@@ -72,7 +77,19 @@ export type TicketDetailErrorCode = 'ticket_not_found';
 
 export type AcceptTicketErrorCode = 'ticket_already_accepted' | 'ticket_closed';
 
-export type TicketApiErrorCode = CreateTicketErrorCode | TicketDetailErrorCode | AcceptTicketErrorCode | 'unauthenticated';
+export type AssignTicketErrorCode =
+	| 'department_unavailable'
+	| 'user_unavailable'
+	| 'ticket_closed'
+	| 'ticket_not_found'
+	| 'invalid_request';
+
+export type TicketApiErrorCode =
+	| CreateTicketErrorCode
+	| TicketDetailErrorCode
+	| AcceptTicketErrorCode
+	| AssignTicketErrorCode
+	| 'unauthenticated';
 
 export class TicketApiError extends Error {
 	readonly kind: TicketApiErrorKind;

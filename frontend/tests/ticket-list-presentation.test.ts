@@ -18,7 +18,7 @@ test('desktop ticket columns follow the approved business hierarchy', async () =
 
 	expect(columns).toEqual(['Requester', 'Location', 'Title', 'Description', 'Status', 'Owner', 'Created On', 'Due Date', 'Action']);
 	expect(page).not.toContain('ticket-id');
-	expect(page).not.toContain('Assignment');
+	expect(page).not.toContain('<th scope="col">Assignment</th>');
 	expect(page).not.toContain('<th scope="col">Department</th>');
 	expect(page).toContain('<th scope="col">Action</th>');
 });
@@ -103,7 +103,7 @@ test('desktop ticket actions use shared semantic colors and isolate row activati
 	expect(table).toMatch(/class="[^"]*ticket-action-button[^"]*ticket-action-assign[^"]*"/);
 	expect(table).toMatch(/class="[^"]*ticket-action-button[^"]*ticket-action-close[^"]*"/);
 	expect(table).toContain('<td class="ticket-actions-cell" onclick={handleRowAction}>');
-	expect(table).toMatch(/ticket-action-assign[\s\S]*?aria-disabled="true"[\s\S]*?disabled/);
+	expect(table).toMatch(/ticket-action-assign[\s\S]*?handleRowAssign\(event, ticket\.id\)/);
 	expect(table).toMatch(/ticket-action-close[\s\S]*?aria-disabled="true"[\s\S]*?disabled/);
 
 	expect(actionButtonStyles).toContain('display: inline-flex;');

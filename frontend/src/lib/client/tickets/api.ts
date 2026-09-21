@@ -1,6 +1,8 @@
 import {
 	TicketApiError,
 	type AcceptTicketErrorCode,
+	type AssignTicketErrorCode,
+	type AssignTicketRequest,
 	type CreateTicketErrorCode,
 	type CreateTicketRequest,
 	type TicketDetailErrorCode,
@@ -142,6 +144,64 @@ export async function acceptTicket(id: number): Promise<TicketSummary> {
 		if (code === 'ticket_already_accepted') {
 			throw new TicketApiError('already_accepted', 'Ticket has already been accepted.', response.status, code);
 		}
+		if (code === 'ticket_closed') {
+			throw new TicketApiError('closed', 'Ticket is closed.', response.status, code);
+		}
+		throw retryableError(response.status);
+	}
+	if (response.status !== 200) {
+		throw retryableError(response.status);
+	}
+
+	let payload: unknown;
+	try {
+		payload = await response.json();
+	} catch {
+		throw retryableError(response.status);
+	}
+	if (!isRecord(payload)) {
+		throw retryableError(response.status);
+	}
+	const ticket = parseTicket(payload.ticket);
+	if (!ticket) {
+		throw retryableError(response.status);
+	}
+	return ticket;
+}
+
+export async function assignTicket(id: number, request: AssignTicketRequest): Promise<TicketSummary> {
+	if (!isPositiveSafeInteger(id) || !isValidAssignmentRequest(request)) {
+		throw new TicketApiError('invalid_input', 'Invalid ticket assignment request.', 400, 'invalid_request');
+	}
+
+	let response: Response;
+	try {
+		response = await fetch(`${ticketsPath}/${id}/assign`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include',
+			body: JSON.stringify(request)
+		});
+	} catch {
+		throw retryableError();
+	}
+
+	if (response.status === 400) {
+		const code = await parseAssignTicketErrorCode(response);
+		throw new TicketApiError('invalid_input', 'Invalid ticket assignment request.', response.status, code);
+	}
+	if (response.status === 401) {
+		throw new TicketApiError('unauthenticated', 'Unauthenticated.', response.status, 'unauthenticated');
+	}
+	if (response.status === 404) {
+		const code = await parseAssignTicketErrorCode(response);
+		if (code === 'ticket_not_found') {
+			throw new TicketApiError('not_found', 'Ticket not found.', response.status, code);
+		}
+		throw retryableError(response.status);
+	}
+	if (response.status === 409) {
+		const code = await parseAssignTicketErrorCode(response);
 		if (code === 'ticket_closed') {
 			throw new TicketApiError('closed', 'Ticket is closed.', response.status, code);
 		}
@@ -340,6 +400,19 @@ function isPositiveSafeInteger(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
+function isValidAssignmentRequest(value: AssignTicketRequest): boolean {
+	return isUniquePositiveIDList(value?.department_ids) && isUniquePositiveIDList(value?.user_ids);
+}
+
+function isUniquePositiveIDList(value: unknown): value is number[] {
+	return (
+		Array.isArray(value) &&
+		value.length <= 100 &&
+		value.every((item) => isPositiveSafeInteger(item)) &&
+		new Set(value).size === value.length
+	);
+}
+
 function isNullableSafeInteger(value: unknown): value is number | null {
 	return value === null || isPositiveSafeInteger(value);
 }
@@ -417,6 +490,29 @@ async function parseAcceptTicketErrorCode(
 		const code = payload.error.code;
 		if (
 			code === 'ticket_already_accepted' ||
+			code === 'ticket_closed' ||
+			code === 'ticket_not_found' ||
+			code === 'invalid_request' ||
+			code === 'unauthenticated'
+		) {
+			return code;
+		}
+	} catch {
+		return undefined;
+	}
+	return undefined;
+}
+
+async function parseAssignTicketErrorCode(response: Response): Promise<AssignTicketErrorCode | 'unauthenticated' | undefined> {
+	try {
+		const payload: unknown = await response.json();
+		if (!isRecord(payload) || !isRecord(payload.error)) {
+			return undefined;
+		}
+		const code = payload.error.code;
+		if (
+			code === 'department_unavailable' ||
+			code === 'user_unavailable' ||
 			code === 'ticket_closed' ||
 			code === 'ticket_not_found' ||
 			code === 'invalid_request' ||

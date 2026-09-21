@@ -1,7 +1,8 @@
-import { LookupApiError, type LookupDepartment, type LookupLocation } from './model';
+import { LookupApiError, type LookupDepartment, type LookupLocation, type LookupUser } from './model';
 
 const departmentsPath = '/api/v1/departments';
 const locationsPath = '/api/v1/locations';
+const usersPath = '/api/v1/users';
 
 export type LocationLookupOptions = {
 	q?: string;
@@ -43,6 +44,37 @@ export async function getLocations(options: LocationLookupOptions = {}): Promise
 	return locations as LookupLocation[];
 }
 
+export type UserLookupOptions = {
+	search?: string;
+	department_id?: number;
+	limit?: number;
+};
+
+export async function getUsers(options: UserLookupOptions = {}): Promise<LookupUser[]> {
+	const query = new URLSearchParams();
+	const search = options.search?.trim();
+	if (search) {
+		query.set('search', search);
+	}
+	if (options.department_id !== undefined) {
+		query.set('department_id', String(options.department_id));
+	}
+	if (options.limit !== undefined) {
+		query.set('limit', String(options.limit));
+	}
+	const path = query.toString() ? `${usersPath}?${query.toString()}` : usersPath;
+	const payload = await getLookupPayload(path);
+	if (!isRecord(payload) || !Array.isArray(payload.users)) {
+		throw retryableError(200);
+	}
+
+	const users = payload.users.map(parseUser);
+	if (users.some((user) => user === null)) {
+		throw retryableError(200);
+	}
+	return users as LookupUser[];
+}
+
 async function getLookupPayload(path: string): Promise<unknown> {
 	let response: Response;
 	try {
@@ -80,6 +112,26 @@ function parseLocation(value: unknown): LookupLocation | null {
 		return null;
 	}
 	return { id: value.id, code: value.code, name: value.name };
+}
+
+function parseUser(value: unknown): LookupUser | null {
+	if (
+		!isRecord(value) ||
+		!isPositiveSafeInteger(value.id) ||
+		typeof value.full_name !== 'string' ||
+		!isPositiveSafeInteger(value.department_id) ||
+		typeof value.department_code !== 'string' ||
+		typeof value.department_name !== 'string'
+	) {
+		return null;
+	}
+	return {
+		id: value.id,
+		full_name: value.full_name,
+		department_id: value.department_id,
+		department_code: value.department_code,
+		department_name: value.department_name
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

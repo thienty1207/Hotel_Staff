@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { getDepartments, getLocations } from '../src/lib/client/lookups/api';
+import { getDepartments, getLocations, getUsers } from '../src/lib/client/lookups/api';
 
 const originalFetch = globalThis.fetch;
 
@@ -53,6 +53,40 @@ test('location lookup leaves omitted limits out of search requests', async () =>
 
 	await expect(getLocations({ q: '  oasis  ' })).resolves.toEqual([]);
 	expect(requestURL).toBe('/api/v1/locations?q=oasis');
+});
+
+test('user lookup sends bounded filters and returns only safe staff fields', async () => {
+	let requestURL = '';
+	globalThis.fetch = async (input) => {
+		requestURL = String(input);
+		return new Response(
+			JSON.stringify({
+				users: [
+					{
+						id: 20,
+						full_name: 'Staff Member',
+						department_id: 2,
+						department_code: 'HK',
+						department_name: 'Housekeeping'
+					}
+				]
+			}),
+			{ status: 200 }
+		);
+	};
+
+	await expect(getUsers({ search: '  staff member  ', department_id: 2, limit: 25 })).resolves.toEqual([
+		{ id: 20, full_name: 'Staff Member', department_id: 2, department_code: 'HK', department_name: 'Housekeeping' }
+	]);
+	expect(requestURL).toBe('/api/v1/users?search=staff+member&department_id=2&limit=25');
+});
+
+test('user lookup rejects malformed users and preserves unauthenticated typing', async () => {
+	globalThis.fetch = async () => new Response(JSON.stringify({ users: [{ id: 20, full_name: 'Missing department' }] }), { status: 200 });
+	await expect(getUsers()).rejects.toMatchObject({ kind: 'retryable', status: 200 });
+
+	globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'unauthenticated' } }), { status: 401 });
+	await expect(getUsers()).rejects.toMatchObject({ kind: 'unauthenticated', status: 401 });
 });
 
 test('RFC3339 ticket timestamps require an explicit timezone-shaped value', async () => {

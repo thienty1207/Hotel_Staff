@@ -3,6 +3,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import AssignTicketDialog from '$lib/components/AssignTicketDialog.svelte';
 	import NewRequestDialog from '$lib/components/NewRequestDialog.svelte';
 	import TicketChat from '$lib/components/TicketChat.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -16,7 +17,21 @@
 		type AcceptViewContext,
 		type TicketAcceptanceCallbacks
 	} from '$lib/client/ticket-acceptance';
-	import { TicketApiError, type TicketIdentity, type TicketListPage, type TicketSummary, type TicketView } from '$lib/client/tickets/model';
+	import {
+		TicketAssignmentController,
+		type AssignmentMutationRequest,
+		type AssignmentOrigin,
+		type AssignmentViewContext,
+		type TicketAssignmentCallbacks
+	} from '$lib/client/ticket-assignment';
+	import {
+		TicketApiError,
+		type AssignTicketRequest,
+		type TicketIdentity,
+		type TicketListPage,
+		type TicketSummary,
+		type TicketView
+	} from '$lib/client/tickets/model';
 	import type { AuthenticatedUser } from '$lib/client/auth/model';
 	import { AuthApiError } from '$lib/client/auth/model';
 
@@ -43,15 +58,23 @@
 	let ticketRequestInFlight = $state(false);
 	let drawerOpen = $state(false);
 	let newRequestOpen = $state(false);
+	let assignDialogOpen = $state(false);
+	let assignDialogTicketID: number | null = $state(null);
+	let assignDialogOrigin: AssignmentOrigin = $state('row');
 	let ticketRequestSequence = 0;
 	let acceptInFlightIDs: number[] = $state([]);
 	let acceptErrorTicketID: number | null = $state(null);
 	let acceptErrorOrigin: AcceptOrigin | null = $state(null);
 	let acceptErrorMessage = $state('');
 	let acceptRetryableTicketID: number | null = $state(null);
+	let assignInFlightIDs: number[] = $state([]);
+	let assignErrorTicketID: number | null = $state(null);
+	let assignErrorMessage = $state('');
+	let assignRetryableTicketID: number | null = $state(null);
 	let chatViewGeneration = 0;
 	const ticketChatMachine = new TicketChatStateMachine();
 	const ticketAcceptance = new TicketAcceptanceController();
+	const ticketAssignment = new TicketAssignmentController();
 	let chatState: TicketChatState = $state(ticketChatMachine.state);
 	let selectedAcceptErrorMessage = $derived(
 		acceptErrorOrigin === 'chat' && acceptErrorTicketID === chatState.selectedTicketID ? acceptErrorMessage : ''
@@ -205,6 +228,12 @@
 		newRequestOpen = false;
 	}
 
+	function closeAssignDialog() {
+		assignDialogOpen = false;
+		assignDialogTicketID = null;
+		assignDialogOrigin = 'row';
+	}
+
 	async function handleNewRequestCreated() {
 		closeTicketChat();
 		activeView = 'open';
@@ -253,6 +282,20 @@
 		acceptInFlightIDs = acceptInFlightIDs.filter((value) => value !== ticketID);
 	}
 
+	function isAssignInFlight(ticketID: number | null): boolean {
+		return ticketID !== null && assignInFlightIDs.includes(ticketID);
+	}
+
+	function setAssignInFlight(ticketID: number, inFlight: boolean) {
+		if (inFlight) {
+			if (!assignInFlightIDs.includes(ticketID)) {
+				assignInFlightIDs = [...assignInFlightIDs, ticketID];
+			}
+			return;
+		}
+		assignInFlightIDs = assignInFlightIDs.filter((value) => value !== ticketID);
+	}
+
 	function patchTicketInList(updatedTicket: TicketSummary) {
 		tickets = tickets.map((ticket) => (ticket.id === updatedTicket.id ? updatedTicket : ticket));
 	}
@@ -274,6 +317,29 @@
 		acceptRetryableTicketID = null;
 	}
 
+	function setAssignError(ticketID: number, message: string, retryable: boolean) {
+		assignErrorTicketID = ticketID;
+		assignErrorMessage = message;
+		assignRetryableTicketID = retryable ? ticketID : null;
+	}
+
+	function clearAssignError(ticketID: number) {
+		if (assignErrorTicketID !== ticketID) {
+			return;
+		}
+		assignErrorTicketID = null;
+		assignErrorMessage = '';
+		assignRetryableTicketID = null;
+	}
+
+	function rowAssignErrorMessage(ticketID: number): string {
+		return assignErrorTicketID === ticketID ? assignErrorMessage : '';
+	}
+
+	function rowAssignRetryable(ticketID: number): boolean {
+		return assignRetryableTicketID === ticketID;
+	}
+
 	function rowAcceptErrorMessage(ticketID: number): string {
 		return acceptErrorOrigin === 'row' && acceptErrorTicketID === ticketID ? acceptErrorMessage : '';
 	}
@@ -284,6 +350,10 @@
 
 	function openTicketChat(ticketID: number) {
 		chatViewGeneration += 1;
+		closeAssignDialog();
+		if (assignErrorTicketID !== null) {
+			clearAssignError(assignErrorTicketID);
+		}
 		acceptErrorOrigin = null;
 		acceptErrorTicketID = null;
 		acceptErrorMessage = '';
@@ -336,10 +406,14 @@
 
 	function closeTicketChat() {
 		chatViewGeneration += 1;
+		closeAssignDialog();
 		acceptErrorOrigin = null;
 		acceptErrorTicketID = null;
 		acceptErrorMessage = '';
 		acceptRetryableTicketID = null;
+		if (assignErrorTicketID !== null) {
+			clearAssignError(assignErrorTicketID);
+		}
 		ticketChatMachine.close();
 		syncTicketChatState();
 	}
@@ -374,6 +448,65 @@
 	function updateSelectedChat(updatedTicket: TicketSummary) {
 		if (ticketChatMachine.updateSelected(updatedTicket.id, updatedTicket)) {
 			syncTicketChatState();
+		}
+	}
+
+	function getAssignmentViewContext(): AssignmentViewContext {
+		return {
+			listSequence: ticketRequestSequence,
+			listView: activeView,
+			chatGeneration: chatViewGeneration,
+			chatOpen: chatState.status !== 'closed',
+			selectedTicketID: chatState.selectedTicketID
+		};
+	}
+
+	function getCurrentTicketForAssignment(ticketID: number, origin: AssignmentOrigin): TicketSummary | null {
+		if (origin === 'chat' && chatState.selectedTicketID === ticketID) {
+			return chatState.ticket;
+		}
+		return tickets.find((ticket) => ticket.id === ticketID) ?? null;
+	}
+
+	async function handleAssignUnauthenticated(_request: AssignmentMutationRequest) {
+		closeTicketChat();
+		await goto('/login', { replaceState: true });
+	}
+
+	const assignmentCallbacks: TicketAssignmentCallbacks = {
+		getCurrentTicket: getCurrentTicketForAssignment,
+		getView: getAssignmentViewContext,
+		patchList: patchTicketInList,
+		updateChat: updateSelectedChat,
+		setError: setAssignError,
+		clearError: clearAssignError,
+		onUnauthenticated: handleAssignUnauthenticated,
+		onInFlightChange: setAssignInFlight
+	};
+
+	function handleAssignSubmit(ticketID: number, request: AssignTicketRequest): Promise<TicketSummary | undefined> {
+		return ticketAssignment.assignTicketByID(ticketID, request, assignDialogOrigin, assignmentCallbacks);
+	}
+
+	function openAssignDialog(ticketID: number, origin: AssignmentOrigin) {
+		const ticket = getCurrentTicketForAssignment(ticketID, origin);
+		if (!ticket || ticket.status === 'closed' || isAssignInFlight(ticketID)) {
+			return;
+		}
+		assignDialogOrigin = origin;
+		assignDialogTicketID = ticketID;
+		assignDialogOpen = true;
+		clearAssignError(ticketID);
+	}
+
+	function handleRowAssign(event: MouseEvent, ticketID: number) {
+		event.stopPropagation();
+		openAssignDialog(ticketID, 'row');
+	}
+
+	function handleChatAssign() {
+		if (chatState.selectedTicketID !== null) {
+			openAssignDialog(chatState.selectedTicketID, 'chat');
 		}
 	}
 
@@ -684,15 +817,15 @@
 												>
 													{isAcceptInFlight(ticket.id) ? 'Accepting…' : 'Accept'}
 												</button>
-												<button
-													class="secondary-button ticket-action-button ticket-action-assign ticket-row-action-button"
-													type="button"
-													aria-disabled="true"
-													disabled
-													onclick={handleRowAction}
-												>
-													Assign
-												</button>
+													<button
+															class="secondary-button ticket-action-button ticket-action-assign ticket-row-action-button"
+															type="button"
+															disabled={ticket.status === 'closed' || isAssignInFlight(ticket.id)}
+															aria-busy={isAssignInFlight(ticket.id)}
+															onclick={(event) => handleRowAssign(event, ticket.id)}
+														>
+															{isAssignInFlight(ticket.id) ? 'Assigning…' : 'Assign'}
+														</button>
 												<button
 													class="secondary-button ticket-action-button ticket-action-close ticket-row-action-button"
 													type="button"
@@ -701,8 +834,16 @@
 													onclick={handleRowAction}
 												>
 													Close
-												</button>
-												{#if rowAcceptErrorMessage(ticket.id)}
+														</button>
+														{#if rowAssignErrorMessage(ticket.id)}
+															<div class="ticket-row-action-error" role="alert" aria-live="assertive">
+																<span>{rowAssignErrorMessage(ticket.id)}</span>
+																{#if rowAssignRetryable(ticket.id)}
+																	<button class="secondary-button ticket-row-action-button" type="button" onclick={(event) => handleRowAssign(event, ticket.id)}>Retry</button>
+																{/if}
+															</div>
+														{/if}
+														{#if rowAcceptErrorMessage(ticket.id)}
 													<div class="ticket-row-action-error" role="alert" aria-live="assertive">
 														<span>{rowAcceptErrorMessage(ticket.id)}</span>
 														{#if rowAcceptRetryable(ticket.id)}
@@ -788,8 +929,10 @@
 						onClose={closeTicketChat}
 						onRetry={retryTicketChat}
 						onAccept={handleAcceptTicket}
-						onRetryAccept={handleAcceptTicket}
-						acceptInFlight={isAcceptInFlight(chatState.selectedTicketID)}
+											onRetryAccept={handleAcceptTicket}
+										onAssign={handleChatAssign}
+										acceptInFlight={isAcceptInFlight(chatState.selectedTicketID)}
+										assignInFlight={isAssignInFlight(chatState.selectedTicketID)}
 						acceptErrorMessage={selectedAcceptErrorMessage}
 						acceptRetryable={selectedAcceptRetryable}
 					/>
@@ -803,6 +946,13 @@
 			disabled={ticketRequestInFlight}
 			onClose={closeNewRequest}
 			onCreated={handleNewRequestCreated}
+		/>
+		<AssignTicketDialog
+			open={assignDialogOpen}
+			ticketID={assignDialogTicketID}
+			disabled={ticketRequestInFlight}
+			onClose={closeAssignDialog}
+			onSubmit={handleAssignSubmit}
 		/>
 	</div>
 {/if}

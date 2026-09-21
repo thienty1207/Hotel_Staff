@@ -16,7 +16,9 @@
 		onRetry: () => void;
 		onAccept: () => void;
 		onRetryAccept: () => void;
+		onAssign: () => void;
 		acceptInFlight: boolean;
+		assignInFlight: boolean;
 		acceptErrorMessage: string;
 		acceptRetryable: boolean;
 	};
@@ -28,7 +30,9 @@
 		onRetry,
 		onAccept,
 		onRetryAccept,
+		onAssign,
 		acceptInFlight,
+		assignInFlight,
 		acceptErrorMessage,
 		acceptRetryable
 	}: Props = $props();
@@ -191,7 +195,15 @@
 		>
 			{acceptInFlight ? 'Accepting…' : 'Accept'}
 		</button>
-		<button class="secondary-button ticket-action-button ticket-action-assign" type="button" aria-disabled="true" disabled>Assign</button>
+		<button
+			class="secondary-button ticket-action-button ticket-action-assign"
+			type="button"
+			disabled={!state.ticket || state.ticket.status === 'closed' || assignInFlight}
+			aria-busy={assignInFlight}
+			onclick={onAssign}
+		>
+			{assignInFlight ? 'Assigning…' : 'Assign'}
+		</button>
 		<button class="secondary-button ticket-action-button ticket-action-close" type="button" aria-disabled="true" disabled>Close</button>
 	</div>
 </section>
