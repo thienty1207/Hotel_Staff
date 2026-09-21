@@ -44,6 +44,49 @@ ORDER BY name ASC, id ASC`)
 	return departments, nil
 }
 
+func (repository *Repository) ListUsers(ctx context.Context, query UserLookupQuery) ([]User, error) {
+	if repository == nil || repository.pool == nil {
+		return nil, fmt.Errorf("lookup repository is not configured")
+	}
+
+	rows, err := repository.pool.Query(ctx, `
+SELECT
+    u.id,
+    u.full_name,
+    d.id,
+    d.code,
+    d.name
+FROM users AS u
+JOIN departments AS d ON d.id = u.department_id
+WHERE u.is_active = TRUE
+  AND (
+      $1 = ''
+      OR strpos(LOWER(u.full_name), LOWER($1)) > 0
+      OR strpos(LOWER(u.username), LOWER($1)) > 0
+      OR strpos(LOWER(u.employee_code), LOWER($1)) > 0
+  )
+  AND ($2::bigint IS NULL OR u.department_id = $2)
+ORDER BY u.full_name ASC, u.id ASC
+LIMIT $3`, query.Search, query.DepartmentID, query.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("query users: %w", err)
+	}
+	defer rows.Close()
+
+	users := make([]User, 0, query.Limit)
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.FullName, &user.DepartmentID, &user.DepartmentCode, &user.DepartmentName); err != nil {
+			return nil, fmt.Errorf("scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate users: %w", err)
+	}
+	return users, nil
+}
+
 func (repository *Repository) ListLocations(ctx context.Context, query LocationQuery) ([]Location, error) {
 	if repository == nil || repository.pool == nil {
 		return nil, fmt.Errorf("lookup repository is not configured")

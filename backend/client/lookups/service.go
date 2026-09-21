@@ -23,3 +23,10 @@ func (service *Service) ListLocations(ctx context.Context, query LocationQuery) 
 	}
 	return service.repository.ListLocations(ctx, query)
 }
+
+func (service *Service) ListUsers(ctx context.Context, query UserLookupQuery) ([]User, error) {
+	if service == nil || service.repository == nil {
+		return nil, errLookupServiceNotConfigured
+	}
+	return service.repository.ListUsers(ctx, query)
+}
