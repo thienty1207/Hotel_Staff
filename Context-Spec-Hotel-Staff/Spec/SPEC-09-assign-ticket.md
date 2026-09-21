@@ -6,6 +6,10 @@
 
 **Implementation state:** Assign runtime is implemented; SPEC-09 remains **OPEN / NOT CLOSED** pending the closure evidence below.
 
+**Maintenance relationship:** SPEC-08.3 is an independent Baron/Graphify tooling-maintenance
+track. Its open tooling state does not block the Hotel Staff Assign Ticket product lifecycle.
+SPEC-09 still requires its own product verification and its own supported Baron closure evidence.
+
 **Next product area after closure:** Close Ticket
 
 **Schema migration required:** **No**
@@ -1085,7 +1089,7 @@ No new caching infrastructure is required.
 
 SPEC-09 stays OPEN until all items are verified:
 
-- [ ] SPEC-08.3 prerequisite is closed.
+- [ ] SPEC-08.3 remains tracked independently; it is not a prerequisite for SPEC-09 product closure.
 - [ ] Assign endpoint implemented.
 - [ ] Auth required.
 - [ ] Pending assignment works.

@@ -4,7 +4,9 @@
 
 **Predecessors:** SPEC-08 ✅ CLOSED, SPEC-08.1 ✅ CLOSED, SPEC-08.2 ✅ CLOSED
 
-**Next planned product SPEC:** SPEC-09 Assign Ticket — not created or implemented
+**Product-track relationship:** SPEC-09 Assign Ticket is implemented independently. Its product
+closure does not imply closure of this Baron/Graphify maintenance track, and this track's open
+state does not block SPEC-09 product verification.
 
 **Repository baseline:** `00c826bf7452af0e8b72e729167302929d4e05ac`
 
@@ -211,10 +213,12 @@ hand.
 
 Do not reopen or rewrite SPEC-08.2. This SPEC owns the maintenance fix.
 
-Only after every closure criterion passes may
-`Context-Spec-Hotel-Staff/PROJECT_CONTEXT.md` be updated to:
+Only after every tooling closure criterion passes may
+`Context-Spec-Hotel-Staff/PROJECT_CONTEXT.md` be updated to record this track as closed. SPEC-09
+product implementation and closure are independent and must not be used as evidence for this
+tooling track.
 
-`SPEC-08.2 ✅ CLOSED → SPEC-08.3 ✅ CLOSED — Toolchain Integrity Repair → SPEC-09 Assign Ticket`
+`SPEC-08.2 ✅ CLOSED → SPEC-08.3 ✅ CLOSED — Toolchain Integrity Repair`
 
 While any warning, blocker, missing receipt, stale Stack Map, or incomplete
 plan remains, SPEC-08.3 stays OPEN and PROJECT_CONTEXT must not claim closure.
@@ -256,7 +260,7 @@ SPEC-08.3 is not closed until all boxes are checked:
 - [ ] Hotel Staff application behavior, database, and business data are
       unchanged.
 - [ ] No migration `0021` exists.
-- [ ] SPEC-09 is not implemented.
+- [ ] SPEC-09 product implementation is outside this tooling track and does not affect its closure evidence.
 - [ ] PROJECT_CONTEXT is updated only after all prior items pass.
 
 ## 18. Required final report

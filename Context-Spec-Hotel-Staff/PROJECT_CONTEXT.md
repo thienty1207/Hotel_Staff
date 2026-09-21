@@ -1,6 +1,6 @@
 # Hotel Staff — PROJECT_CONTEXT (Canonical Current Context)
 
-> **Last context refresh:** 2026-09-18
+> **Last context refresh:** 2026-09-21
 >
 > **Product:** `Hotel Staff`
 >
@@ -12,7 +12,7 @@
 >
 > **Local PostgreSQL database:** `hotel_staff`
 >
-> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.3 remains **OPEN / NOT CLOSED** because the native Baron/Graphify lifecycle evidence is still unavailable. SPEC-09 Assign Ticket runtime is implemented, including active-target validation and historical inactive-assignment preservation/removal, but SPEC-09 remains **OPEN / NOT CLOSED** pending manual persistence, CI, and Baron closure evidence.
+> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.3 remains **OPEN / NOT CLOSED** because the native Baron/Graphify lifecycle evidence is still unavailable; it is an independent tooling-maintenance track and does not block the product lifecycle. SPEC-09 Assign Ticket runtime is implemented, including active-target validation and historical inactive-assignment preservation/removal, but SPEC-09 remains **OPEN / NOT CLOSED** pending its own manual persistence, CI, and Baron closure evidence.
 
 ---
 
@@ -1152,9 +1152,10 @@ SPEC-08 ✅ CLOSED
 → SPEC-09 OPEN / NOT CLOSED — Assign Ticket implementation
 ```
 
-SPEC-09 remains open pending manual authenticated persistence verification, responsive checks,
-GitHub Actions evidence, and supported Baron proof/gate/trace completion. Close Ticket remains
-the next product area after SPEC-09 closure.
+SPEC-08.3 remains an independent Baron/Graphify maintenance track and is not a prerequisite for
+SPEC-09 product closure. SPEC-09 remains open pending its own manual authenticated persistence
+verification, responsive checks, GitHub Actions evidence, and supported Baron proof/gate/trace
+completion. Close Ticket remains the next product area after SPEC-09 closure.
 
 ---
 
