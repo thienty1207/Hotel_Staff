@@ -51,7 +51,9 @@ FOR UPDATE`, ticketID).Scan(&status); err != nil {
 	if err != nil {
 		return Ticket{}, err
 	}
-	if err := repository.validateAssignmentTargets(ctx, transaction, request); err != nil {
+	_, addedDepartments := assignmentDiff(currentDepartments, request.DepartmentIDs)
+	_, addedUsers := assignmentDiff(currentUsers, request.UserIDs)
+	if err := repository.validateAssignmentTargets(ctx, transaction, addedDepartments, addedUsers); err != nil {
 		return Ticket{}, err
 	}
 
@@ -148,13 +150,13 @@ ORDER BY user_id ASC`, ticketID)
 	return departmentIDs, userIDs, nil
 }
 
-func (repository *Repository) validateAssignmentTargets(ctx context.Context, queryer ticketQueryer, request AssignRequest) error {
-	if len(request.DepartmentIDs) > 0 {
+func (repository *Repository) validateAssignmentTargets(ctx context.Context, queryer ticketQueryer, departmentIDs, userIDs []int64) error {
+	if len(departmentIDs) > 0 {
 		rows, err := queryer.Query(ctx, `
 SELECT id
 FROM departments
 WHERE is_active = TRUE
-  AND id = ANY($1::bigint[])`, request.DepartmentIDs)
+  AND id = ANY($1::bigint[])`, departmentIDs)
 		if err != nil {
 			return fmt.Errorf("validate assignment departments: %w", err)
 		}
@@ -166,16 +168,16 @@ WHERE is_active = TRUE
 		if err := rows.Err(); err != nil {
 			return fmt.Errorf("iterate assignment departments: %w", err)
 		}
-		if count != len(request.DepartmentIDs) {
+		if count != len(departmentIDs) {
 			return ErrDepartmentUnavailable
 		}
 	}
-	if len(request.UserIDs) > 0 {
+	if len(userIDs) > 0 {
 		rows, err := queryer.Query(ctx, `
 SELECT id
 FROM users
 WHERE is_active = TRUE
-  AND id = ANY($1::bigint[])`, request.UserIDs)
+  AND id = ANY($1::bigint[])`, userIDs)
 		if err != nil {
 			return fmt.Errorf("validate assignment users: %w", err)
 		}
@@ -187,7 +189,7 @@ WHERE is_active = TRUE
 		if err := rows.Err(); err != nil {
 			return fmt.Errorf("iterate assignment users: %w", err)
 		}
-		if count != len(request.UserIDs) {
+		if count != len(userIDs) {
 			return ErrUserUnavailable
 		}
 	}

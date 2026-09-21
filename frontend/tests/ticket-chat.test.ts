@@ -558,6 +558,20 @@ test('Assignment dialog uses authoritative ticket state, safe lookup lists, and 
 	expect(page).toContain('onSubmit={handleAssignSubmit}');
 });
 
+test('Assignment dialog keeps historical inactive targets visible and removable', async () => {
+	const dialog = await Bun.file(new URL('../src/lib/components/AssignTicketDialog.svelte', import.meta.url)).text();
+
+	expect(dialog).toContain('mergeDepartmentOptions(nextDepartments, nextTicket.assigned_departments)');
+	expect(dialog).toContain('mergeUserOptions(nextUsers, nextTicket.assigned_users)');
+	expect(dialog).toContain('inactiveCurrent: true');
+	expect(dialog).toContain('department_id: null');
+	expect(dialog).toContain('authoritativeTicket?.assigned_users ?? []');
+	expect(dialog).toContain('Existing inactive assignments can be kept or removed.');
+	expect(dialog).toContain("currently assigned · inactive");
+	expect(dialog).toContain('selectedDepartmentIDs.includes(department.id)');
+	expect(dialog).toContain('selectedUserIDs.includes(staff.id)');
+});
+
 test('Accept patches only the submitted ticket and cannot replace a newer Chat selection', async () => {
 	const page = await Bun.file(new URL('../src/routes/+page.svelte', import.meta.url)).text();
 	const acceptStart = page.indexOf('async function handleAcceptTicket');

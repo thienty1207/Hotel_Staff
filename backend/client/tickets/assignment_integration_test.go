@@ -174,18 +174,21 @@ func TestAssignTicketEndpointPersistsSetsWithoutChangingLifecycle(t *testing.T) 
 			t.Fatalf("closed assignment was not rejected correctly: status=%d body=%+v", closed.StatusCode, closedBody)
 		}
 
-		bodies := []string{
-			fmt.Sprintf("{\"department_ids\":[%d],\"user_ids\":[]}", fixture.InactiveDepartmentID),
-			fmt.Sprintf("{\"department_ids\":[],\"user_ids\":[%d]}", fixture.InactiveUserID),
-			"{\"department_ids\":[9223372036854775807],\"user_ids\":[]}",
+		cases := []struct {
+			body         string
+			expectedCode string
+		}{
+			{body: fmt.Sprintf("{\"department_ids\":[%d],\"user_ids\":[]}", fixture.InactiveDepartmentID), expectedCode: "department_unavailable"},
+			{body: fmt.Sprintf("{\"department_ids\":[],\"user_ids\":[%d]}", fixture.InactiveUserID), expectedCode: "user_unavailable"},
+			{body: "{\"department_ids\":[9223372036854775807],\"user_ids\":[]}", expectedCode: "department_unavailable"},
 		}
-		for _, body := range bodies {
-			response := requestAssignTicket(t, server, fixture.AcceptedTicketID, fixture.ActorToken, body)
+		for _, testCase := range cases {
+			response := requestAssignTicket(t, server, fixture.AcceptedTicketID, fixture.ActorToken, testCase.body)
 			var payload map[string]map[string]string
 			decodeTicketResponse(t, response, &payload)
 			response.Body.Close()
-			if response.StatusCode != http.StatusBadRequest {
-				t.Fatalf("unavailable target returned unexpected status %d: %+v", response.StatusCode, payload)
+			if response.StatusCode != http.StatusBadRequest || payload["error"]["code"] != testCase.expectedCode {
+				t.Fatalf("unavailable target returned unexpected response: status=%d expected_code=%s body=%+v", response.StatusCode, testCase.expectedCode, payload)
 			}
 		}
 	})
@@ -275,6 +278,105 @@ func TestAssignTicketConcurrentReplacementsSerializeOnTicketRow(t *testing.T) {
 	}
 	if activityCount != 2 {
 		t.Fatalf("expected one activity for each committed replacement, got %d", activityCount)
+	}
+}
+
+func TestAssignTicketPreservesAndRemovesInactiveHistoricalAssignments(t *testing.T) {
+	pool, ctx := openTicketsTestPool(t)
+	fixture := seedAssignmentFixture(t, pool, ctx)
+	server := newTicketsApp(pool)
+
+	initial := requestAssignTicket(t, server, fixture.PendingTicketID, fixture.ActorToken, fmt.Sprintf(
+		"{\"department_ids\":[%d],\"user_ids\":[%d]}", fixture.FirstDepartmentID, fixture.FirstUserID,
+	))
+	var initialResult ticketDetailResponse
+	decodeTicketResponse(t, initial, &initialResult)
+	initial.Body.Close()
+	if initial.StatusCode != http.StatusOK {
+		t.Fatalf("expected initial assignment status 200, got %d", initial.StatusCode)
+	}
+
+	var departmentAssignedAt, userAssignedAt time.Time
+	if err := pool.QueryRow(ctx, "SELECT assigned_at FROM ticket_assigned_departments WHERE ticket_id = $1 AND department_id = $2", fixture.PendingTicketID, fixture.FirstDepartmentID).Scan(&departmentAssignedAt); err != nil {
+		t.Fatalf("read historical department assignment timestamp: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT assigned_at FROM ticket_assigned_users WHERE ticket_id = $1 AND user_id = $2", fixture.PendingTicketID, fixture.FirstUserID).Scan(&userAssignedAt); err != nil {
+		t.Fatalf("read historical user assignment timestamp: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "UPDATE departments SET is_active = FALSE WHERE id = $1", fixture.FirstDepartmentID); err != nil {
+		t.Fatalf("deactivate historical department assignment: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "UPDATE users SET is_active = FALSE WHERE id = $1", fixture.FirstUserID); err != nil {
+		t.Fatalf("deactivate historical user assignment: %v", err)
+	}
+
+	preserve := requestAssignTicket(t, server, fixture.PendingTicketID, fixture.ActorToken, fmt.Sprintf(
+		"{\"department_ids\":[%d,%d],\"user_ids\":[%d,%d]}", fixture.FirstDepartmentID, fixture.SecondDepartmentID, fixture.FirstUserID, fixture.SecondUserID,
+	))
+	var preservedResult ticketDetailResponse
+	decodeTicketResponse(t, preserve, &preservedResult)
+	preserve.Body.Close()
+	if preserve.StatusCode != http.StatusOK {
+		t.Fatalf("preserving inactive historical assignments returned status %d", preserve.StatusCode)
+	}
+	if got := assignmentDepartmentIDs(preservedResult.Ticket); !equalInt64s(got, []int64{fixture.FirstDepartmentID, fixture.SecondDepartmentID}) {
+		t.Fatalf("preserving inactive department changed the assignment set: %v", got)
+	}
+	if got := assignmentUserIDs(preservedResult.Ticket); !equalInt64s(got, []int64{fixture.FirstUserID, fixture.SecondUserID}) {
+		t.Fatalf("preserving inactive user changed the assignment set: %v", got)
+	}
+
+	var preservedDepartmentAssignedAt, preservedUserAssignedAt time.Time
+	if err := pool.QueryRow(ctx, "SELECT assigned_at FROM ticket_assigned_departments WHERE ticket_id = $1 AND department_id = $2", fixture.PendingTicketID, fixture.FirstDepartmentID).Scan(&preservedDepartmentAssignedAt); err != nil {
+		t.Fatalf("read preserved historical department timestamp: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT assigned_at FROM ticket_assigned_users WHERE ticket_id = $1 AND user_id = $2", fixture.PendingTicketID, fixture.FirstUserID).Scan(&preservedUserAssignedAt); err != nil {
+		t.Fatalf("read preserved historical user timestamp: %v", err)
+	}
+	if !preservedDepartmentAssignedAt.Equal(departmentAssignedAt) || !preservedUserAssignedAt.Equal(userAssignedAt) {
+		t.Fatalf("preserving inactive historical assignments churned timestamps: department=%s/%s user=%s/%s", departmentAssignedAt, preservedDepartmentAssignedAt, userAssignedAt, preservedUserAssignedAt)
+	}
+
+	remove := requestAssignTicket(t, server, fixture.PendingTicketID, fixture.ActorToken, fmt.Sprintf(
+		"{\"department_ids\":[%d],\"user_ids\":[%d]}", fixture.SecondDepartmentID, fixture.SecondUserID,
+	))
+	var removedResult ticketDetailResponse
+	decodeTicketResponse(t, remove, &removedResult)
+	remove.Body.Close()
+	if remove.StatusCode != http.StatusOK {
+		t.Fatalf("removing inactive historical assignments returned status %d", remove.StatusCode)
+	}
+	if got := assignmentDepartmentIDs(removedResult.Ticket); !equalInt64s(got, []int64{fixture.SecondDepartmentID}) {
+		t.Fatalf("removing inactive department left an unexpected assignment set: %v", got)
+	}
+	if got := assignmentUserIDs(removedResult.Ticket); !equalInt64s(got, []int64{fixture.SecondUserID}) {
+		t.Fatalf("removing inactive user left an unexpected assignment set: %v", got)
+	}
+
+	var departmentCount, userCount int
+	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM ticket_assigned_departments WHERE ticket_id = $1 AND department_id = $2", fixture.PendingTicketID, fixture.FirstDepartmentID).Scan(&departmentCount); err != nil {
+		t.Fatalf("count removed historical department assignment: %v", err)
+	}
+	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM ticket_assigned_users WHERE ticket_id = $1 AND user_id = $2", fixture.PendingTicketID, fixture.FirstUserID).Scan(&userCount); err != nil {
+		t.Fatalf("count removed historical user assignment: %v", err)
+	}
+	if departmentCount != 0 || userCount != 0 {
+		t.Fatalf("removed inactive historical assignments remain persisted: department=%d user=%d", departmentCount, userCount)
+	}
+
+	var metadata string
+	if err := pool.QueryRow(ctx, "SELECT metadata::text FROM ticket_activity WHERE ticket_id = $1 AND action = 'assignment_updated' ORDER BY id DESC LIMIT 1", fixture.PendingTicketID).Scan(&metadata); err != nil {
+		t.Fatalf("read removal activity metadata: %v", err)
+	}
+	var activityMetadata map[string][]int64
+	if err := json.Unmarshal([]byte(metadata), &activityMetadata); err != nil {
+		t.Fatalf("decode removal activity metadata: %v", err)
+	}
+	if !equalInt64s(activityMetadata["before_department_ids"], []int64{fixture.FirstDepartmentID, fixture.SecondDepartmentID}) ||
+		!equalInt64s(activityMetadata["before_user_ids"], []int64{fixture.FirstUserID, fixture.SecondUserID}) ||
+		!equalInt64s(activityMetadata["after_department_ids"], []int64{fixture.SecondDepartmentID}) ||
+		!equalInt64s(activityMetadata["after_user_ids"], []int64{fixture.SecondUserID}) {
+		t.Fatalf("unexpected removal activity metadata: %+v", activityMetadata)
 	}
 }
 

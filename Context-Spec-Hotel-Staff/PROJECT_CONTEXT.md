@@ -12,7 +12,7 @@
 >
 > **Local PostgreSQL database:** `hotel_staff`
 >
-> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.2 records an accepted optional `graphify-local`/managed Stack Map compatibility exception; no Stack Map refresh is claimed and no wrapper or manual Baron-state repair was retained. SPEC-09 Assign Ticket is next; SPEC-09 has not been created or implemented.
+> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.3 remains **OPEN / NOT CLOSED** because the native Baron/Graphify lifecycle evidence is still unavailable. SPEC-09 Assign Ticket runtime is implemented, including active-target validation and historical inactive-assignment preservation/removal, but SPEC-09 remains **OPEN / NOT CLOSED** pending manual persistence, CI, and Baron closure evidence.
 
 ---
 
@@ -216,9 +216,9 @@ the managed `docs/baron/platform/STACK_MAP.md` remains at its last supported gen
 was not hand-edited. A temporary compatibility probe was removed and no wrapper, fake receipt, or
 fake Stack Map output was committed. The supported `baron plan complete` command was also refused
 because the current environment has no trusted execution receipt; no receipt was fabricated. This
-is an accepted optional-tooling/lifecycle exception, not a product closure blocker. No migration,
-seed, schema, or persisted BWP dataset change was made; the next product feature remains SPEC-09,
-not implemented.
+is an accepted optional-tooling/lifecycle exception for the rebrand/hardening history. No migration,
+seed, schema, or persisted BWP dataset change was made. SPEC-09 is now the active implementation
+area and remains open until its own closure evidence is complete.
 
 Pre-production login rate limiting remains deferred until a deployment and trusted-proxy/client-IP
 contract exists. Production frontend/backend routing and deployment architecture are also deferred.
@@ -357,12 +357,12 @@ GET  /api/v1/tickets
 GET  /api/v1/tickets/:id
 POST /api/v1/tickets
 POST /api/v1/tickets/:id/accept
+POST /api/v1/tickets/:id/assign
 ```
 
 Not implemented:
 
 ```text
-POST /api/v1/tickets/:id/assign
 POST /api/v1/tickets/:id/close
 
 persistent chat-message APIs
@@ -588,7 +588,10 @@ one or many users
 departments + users simultaneously
 ```
 
-The Assign mutation itself is not implemented yet.
+The Assign mutation is implemented by `POST /api/v1/tickets/:id/assign`.
+
+Only newly added department/user IDs must be active. Existing inactive historical assignments are
+returned by ticket reads, may be preserved when still requested, and may be removed explicitly.
 
 ---
 
@@ -1001,7 +1004,6 @@ Visible label uses location name, not internal code, where required by current U
 Still not implemented:
 
 ```text
-Assign mutation
 Close mutation
 persistent Chat messages
 image upload
@@ -1101,7 +1103,8 @@ SPEC-08.1 ✅ CLOSED — Hotel Staff rebrand; runtime, automated, desktop, and u
 mobile/narrow verification recorded
 SPEC-08.2 ✅ CLOSED — post-rebrand repository hardening; optional Graphify code-map exception
 documented without a managed Stack Map refresh claim
-SPEC-09   NOT CREATED / NOT IMPLEMENTED
+SPEC-08.3 OPEN / NOT CLOSED — Baron/Graphify toolchain integrity evidence remains pending
+SPEC-09   OPEN / NOT CLOSED — Assign Ticket runtime implemented; closure evidence pending
 ```
 
 ---
@@ -1145,10 +1148,13 @@ change product runtime identity or block this product closure.
 SPEC-08 ✅ CLOSED
 → SPEC-08.1 ✅ CLOSED — Hotel Staff rebrand
 → SPEC-08.2 ✅ CLOSED — post-rebrand repository hardening
-→ SPEC-09 Assign Ticket design (SPEC-09 is not yet created)
+→ SPEC-08.3 OPEN / NOT CLOSED — Baron/Graphify toolchain integrity repair
+→ SPEC-09 OPEN / NOT CLOSED — Assign Ticket implementation
 ```
 
-SPEC-09 implementation remains out of scope for this closure task.
+SPEC-09 remains open pending manual authenticated persistence verification, responsive checks,
+GitHub Actions evidence, and supported Baron proof/gate/trace completion. Close Ticket remains
+the next product area after SPEC-09 closure.
 
 ---
 
@@ -1184,14 +1190,14 @@ first accepter = accepted_by
 ASSIGNMENT:
 separate from status
 schema supports multi-user + multi-department
-Assign mutation not implemented
+Assign mutation implemented; closure verification pending
 
 TICKET LIST:
 Requester / Location / Title / Description / Status / Owner / Created On / Due Date / Action
 
 ACTIONS:
 Accept implemented
-Assign not implemented
+Assign implemented
 Close not implemented
 
 SPEC-07:
@@ -1218,9 +1224,9 @@ RUNTIME MOCK DATA:
 forbidden
 
 CURRENT:
-SPEC-08.2 — ✅ CLOSED; post-rebrand hardening and recorded runtime/CI/DB verification complete
-with the optional Graphify/managed Stack Map compatibility exception documented
+SPEC-09 — OPEN / NOT CLOSED; Assign Ticket runtime is implemented, including historical inactive
+assignment preservation/removal and active-target-only validation. Closure evidence is pending.
 
 NEXT FEATURE:
-SPEC-09 — Assign Ticket design; not created or implemented
+Close Ticket after SPEC-09 closure
 ```

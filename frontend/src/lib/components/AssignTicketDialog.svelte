@@ -16,11 +16,21 @@
 		onSubmit: (ticketID: number, request: AssignTicketRequest) => Promise<TicketSummary | undefined>;
 	};
 
+	type AssignmentDepartmentOption = LookupDepartment & {
+		inactiveCurrent: boolean;
+	};
+
+	type AssignmentUserOption = Omit<LookupUser, 'department_id' | 'department_name'> & {
+		department_id: number | null;
+		department_name: string;
+		inactiveCurrent: boolean;
+	};
+
 	let { open, ticketID, disabled = false, onClose, onSubmit }: Props = $props();
 
 	let authoritativeTicket: TicketSummary | null = $state(null);
-	let departments: LookupDepartment[] = $state([]);
-	let users: LookupUser[] = $state([]);
+	let departments: AssignmentDepartmentOption[] = $state([]);
+	let users: AssignmentUserOption[] = $state([]);
 	let selectedDepartmentIDs: number[] = $state([]);
 	let selectedUserIDs: number[] = $state([]);
 	let userSearch = $state('');
@@ -85,8 +95,8 @@
 				return;
 			}
 			authoritativeTicket = nextTicket;
-			departments = nextDepartments;
-			users = nextUsers;
+			departments = mergeDepartmentOptions(nextDepartments, nextTicket.assigned_departments);
+			users = mergeUserOptions(nextUsers, nextTicket.assigned_users);
 			selectedDepartmentIDs = nextTicket.assigned_departments.map((department) => department.id);
 			selectedUserIDs = nextTicket.assigned_users.map((user) => user.id);
 		} catch (error) {
@@ -107,6 +117,37 @@
 				loading = false;
 			}
 		}
+	}
+
+	function mergeDepartmentOptions(activeDepartments: LookupDepartment[], assignedDepartments: TicketSummary['assigned_departments']): AssignmentDepartmentOption[] {
+		const options = new Map<number, AssignmentDepartmentOption>();
+		for (const department of activeDepartments) {
+			options.set(department.id, { ...department, inactiveCurrent: false });
+		}
+		for (const department of assignedDepartments) {
+			if (!options.has(department.id)) {
+				options.set(department.id, { ...department, inactiveCurrent: true });
+			}
+		}
+		return [...options.values()];
+	}
+
+	function mergeUserOptions(activeUsers: LookupUser[], assignedUsers: TicketSummary['assigned_users']): AssignmentUserOption[] {
+		const options = new Map<number, AssignmentUserOption>();
+		for (const user of activeUsers) {
+			options.set(user.id, { ...user, inactiveCurrent: false });
+		}
+		for (const user of assignedUsers) {
+			if (!options.has(user.id)) {
+				options.set(user.id, {
+					...user,
+					department_id: null,
+					department_name: 'Current assignment',
+					inactiveCurrent: true
+				});
+			}
+		}
+		return [...options.values()];
 	}
 
 	function isCurrentLoad(requestSequence: number, nextTicketID: number): boolean {
@@ -153,7 +194,7 @@
 			if (requestSequence !== userSearchSequence || !open) {
 				return;
 			}
-			users = nextUsers;
+			users = mergeUserOptions(nextUsers, authoritativeTicket?.assigned_users ?? []);
 		} catch (error) {
 			if (requestSequence !== userSearchSequence || !open) {
 				return;
@@ -233,7 +274,7 @@
 				</div>
 			{:else if authoritativeTicket}
 				<form class="assign-ticket-form" onsubmit={handleSubmit} aria-busy={submitting}>
-					<p class="assign-ticket-context"><strong>{authoritativeTicket.title}</strong><span>Choose active departments and staff members.</span></p>
+					<p class="assign-ticket-context"><strong>{authoritativeTicket.title}</strong><span>Choose active targets. Existing inactive assignments can be kept or removed.</span></p>
 
 					<div class="assign-ticket-lists">
 						<fieldset class="assign-ticket-list-group">
@@ -245,7 +286,7 @@
 									{#each departments as department (department.id)}
 										<label class="assign-ticket-option">
 											<input type="checkbox" checked={selectedDepartmentIDs.includes(department.id)} onchange={() => toggleDepartment(department.id)} disabled={submitting} />
-											<span><strong>{department.name}</strong><small>{department.code}</small></span>
+											<span><strong>{department.name}</strong><small>{department.code}{department.inactiveCurrent ? ' · currently assigned · inactive' : ' · active target'}</small></span>
 										</label>
 									{/each}
 								{/if}
@@ -269,7 +310,7 @@
 									{#each users as staff (staff.id)}
 										<label class="assign-ticket-option">
 											<input type="checkbox" checked={selectedUserIDs.includes(staff.id)} onchange={() => toggleUser(staff.id)} disabled={submitting} />
-											<span><strong>{staff.full_name}</strong><small>{staff.department_name} · {staff.department_code}</small></span>
+											<span><strong>{staff.full_name}</strong><small>{staff.inactiveCurrent ? `${staff.department_code} · currently assigned · inactive` : `${staff.department_name} · ${staff.department_code}`}</small></span>
 										</label>
 									{/each}
 								{/if}
