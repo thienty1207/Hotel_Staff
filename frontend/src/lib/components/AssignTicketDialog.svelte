@@ -375,7 +375,6 @@
 						<section id="assign-request-groups" class="assign-request-view" aria-label="Groups">
 							<div class="assign-request-toolbar">
 								<label class="assign-request-search-shell">
-									<span class="sr-only">Search groups</span>
 									<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="m16 16 4.5 4.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" /></svg>
 									<input type="search" aria-label="Search groups" placeholder="Search groups" value={departmentSearch} oninput={(event) => (departmentSearch = (event.currentTarget as HTMLInputElement).value)} disabled={submitting} />
 								</label>
@@ -410,7 +409,6 @@
 
 							<div class="assign-request-toolbar">
 								<label class="assign-request-search-shell">
-									<span class="sr-only">Search users</span>
 									<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7" /><path d="m16 16 4.5 4.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" /></svg>
 									<input type="search" aria-label="Search users" placeholder="Search users" value={userSearch} oninput={scheduleUserSearch} disabled={submitting} />
 								</label>

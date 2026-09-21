@@ -66,6 +66,29 @@ test('Assign Request dialog uses the compact tabbed contract', async () => {
 	expect(dialog).not.toContain('authoritativeTicket.title');
 });
 
+test('Assign Request search controls stay icon-first and the modal stays compact', async () => {
+	const dialog = await Bun.file(new URL('../src/lib/components/AssignTicketDialog.svelte', import.meta.url)).text();
+	const styles = await Bun.file(new URL('../src/lib/styles/app.css', import.meta.url)).text();
+	const searchShells = [...dialog.matchAll(/<label class="assign-request-search-shell">([\s\S]*?)<\/label>/g)].map((match) => match[1]);
+
+	expect(searchShells).toHaveLength(2);
+	expect(dialog).not.toContain('<span class="sr-only">Search groups</span>');
+	expect(dialog).not.toContain('<span class="sr-only">Search users</span>');
+	expect(dialog).toContain('aria-label="Search groups"');
+	expect(dialog).toContain('aria-label="Search users"');
+	expect(dialog).toContain('placeholder="Search groups"');
+	expect(dialog).toContain('placeholder="Search users"');
+	for (const shell of searchShells) {
+		expect(shell.indexOf('<svg')).toBeLessThan(shell.indexOf('<input'));
+	}
+
+	expect(styles).toContain('width: min(100%, 560px);');
+	expect(styles).not.toContain('width: min(100%, 670px);');
+	expect(styles).toContain('max-height: min(610px, calc(100dvh - 2rem));');
+	expect(styles).not.toContain('max-height: min(760px, calc(100dvh - 2rem));');
+	expect(styles).toContain('max-height: min(17rem, 38dvh);');
+});
+
 test('Assign Request preserves scoped selection and inactive-assignment behavior', async () => {
 	const dialog = await Bun.file(new URL('../src/lib/components/AssignTicketDialog.svelte', import.meta.url)).text();
 
