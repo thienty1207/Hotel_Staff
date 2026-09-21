@@ -1126,12 +1126,12 @@ SPEC-09 stays OPEN until all items are verified:
 
 ---
 
-## 30. Closure state
+## 30. Conditional closure state
 
 Only after every closure criterion passes may this document change to:
 
 ```text
-Status: ✅ CLOSED
+Status: ✅ CLOSED only after every closure criterion above is proven
 ```
 
 Then update:
@@ -1143,7 +1143,7 @@ Context-Spec-Hotel-Staff/PROJECT_CONTEXT.md
 to record:
 
 ```text
-SPEC-09 ✅ CLOSED — Assign Ticket
+SPEC-09 ✅ CLOSED — Assign Ticket only after every closure criterion above is proven
 ```
 
 and move the roadmap to:
