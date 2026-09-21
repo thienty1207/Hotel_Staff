@@ -12,7 +12,7 @@
 >
 > **Local PostgreSQL database:** `hotel_staff`
 >
-> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.3 remains **OPEN / NOT CLOSED** because the native Baron/Graphify lifecycle evidence is still unavailable; it is an independent tooling-maintenance track and does not block the product lifecycle. SPEC-09 Assign Ticket implementation and automated verification are complete, including active-target validation and historical inactive-assignment preservation/removal; GitHub Actions CI passes, and SPEC-09 remains **OPEN / NOT CLOSED** only pending authenticated manual persistence and responsive product verification.
+> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.3 remains **OPEN / NOT CLOSED** because the native Baron/Graphify lifecycle evidence is still unavailable; it is an independent tooling-maintenance track and does not block the product lifecycle. SPEC-09.1 Assign Request UI alignment is implemented with frontend check/tests/build passing, but remains **OPEN / NOT CLOSED** pending manual browser acceptance. SPEC-09 Assign Ticket implementation and automated verification are complete, including active-target validation and historical inactive-assignment preservation/removal; GitHub Actions CI passes, and SPEC-09 remains **OPEN / NOT CLOSED** only pending authenticated manual persistence and responsive product verification.
 
 ---
 
@@ -1105,6 +1105,7 @@ SPEC-08.2 ✅ CLOSED — post-rebrand repository hardening; optional Graphify co
 documented without a managed Stack Map refresh claim
 SPEC-08.3 OPEN / NOT CLOSED — Baron/Graphify toolchain integrity evidence remains pending
 SPEC-09   OPEN / NOT CLOSED — Assign Ticket runtime implemented; closure evidence pending
+SPEC-09.1 OPEN / NOT CLOSED — Assign Request UI implemented; manual browser acceptance pending
 ```
 
 ---
@@ -1150,6 +1151,7 @@ SPEC-08 ✅ CLOSED
 → SPEC-08.2 ✅ CLOSED — post-rebrand repository hardening
 → SPEC-08.3 OPEN / NOT CLOSED — Baron/Graphify toolchain integrity repair
 → SPEC-09 OPEN / NOT CLOSED — Assign Ticket implementation
+→ SPEC-09.1 OPEN / NOT CLOSED — Assign Request UI alignment; manual browser acceptance pending
 ```
 
 SPEC-08.3 remains an independent Baron/Graphify maintenance track and is not a prerequisite for
@@ -1228,6 +1230,9 @@ RUNTIME MOCK DATA:
 forbidden
 
 CURRENT:
+SPEC-09.1 — IMPLEMENTED / OPEN; Assign Request UI alignment and scoped lookup behavior are
+implemented, with frontend automated verification passing. Manual browser acceptance is pending.
+
 SPEC-09 — OPEN / NOT CLOSED; Assign Ticket runtime is implemented, including historical inactive
 assignment preservation/removal and active-target-only validation. Closure evidence is pending.
 

@@ -540,19 +540,19 @@ test('Ticket Chat activates Accept and Assign while keeping Close non-mutating',
 	expect(chat).not.toContain('onclick={onCloseTicket}');
 });
 
-test('Assignment dialog uses authoritative ticket state, safe lookup lists, and a semantic save flow', async () => {
+test('Assignment dialog uses authoritative ticket state, scoped lookup lists, and a semantic assign flow', async () => {
 	const dialog = await Bun.file(new URL('../src/lib/components/AssignTicketDialog.svelte', import.meta.url)).text();
 	const page = await Bun.file(new URL('../src/routes/+page.svelte', import.meta.url)).text();
 
 	expect(dialog).toContain('getTicket(nextTicketID)');
 	expect(dialog).toContain('getDepartments()');
-	expect(dialog).toContain('getUsers({ limit: 100 })');
+	expect(dialog).toContain('lookupUsersForDepartments(nextSelectedDepartmentIDs, \'\', undefined)');
 	expect(dialog).toContain('selectedDepartmentIDs');
 	expect(dialog).toContain('selectedUserIDs');
 	expect(dialog).toContain('userSearchSequence');
 	expect(dialog).toContain('onSubmit(ticketID');
 	expect(dialog).toContain('type="checkbox"');
-	expect(dialog).toContain('Save assignment');
+	expect(dialog).toContain("submitting ? 'Assigning…' : 'Assign'");
 	expect(page).toContain('TicketAssignmentController');
 	expect(page).toContain('function openAssignDialog(ticketID: number, origin: AssignmentOrigin)');
 	expect(page).toContain('onSubmit={handleAssignSubmit}');
@@ -562,12 +562,11 @@ test('Assignment dialog keeps historical inactive targets visible and removable'
 	const dialog = await Bun.file(new URL('../src/lib/components/AssignTicketDialog.svelte', import.meta.url)).text();
 
 	expect(dialog).toContain('mergeDepartmentOptions(nextDepartments, nextTicket.assigned_departments)');
-	expect(dialog).toContain('mergeUserOptions(nextUsers, nextTicket.assigned_users)');
+	expect(dialog).toContain('mergeUserOptions(nextUsers, nextTicket.assigned_users, nextSelectedDepartmentIDs, nextDepartmentOptions)');
 	expect(dialog).toContain('inactiveCurrent: true');
 	expect(dialog).toContain('department_id: null');
 	expect(dialog).toContain('authoritativeTicket?.assigned_users ?? []');
-	expect(dialog).toContain('Existing inactive assignments can be kept or removed.');
-	expect(dialog).toContain("currently assigned · inactive");
+	expect(dialog).toContain("(Inactive)");
 	expect(dialog).toContain('selectedDepartmentIDs.includes(department.id)');
 	expect(dialog).toContain('selectedUserIDs.includes(staff.id)');
 });
