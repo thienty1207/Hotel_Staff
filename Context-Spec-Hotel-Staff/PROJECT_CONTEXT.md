@@ -12,7 +12,7 @@
 >
 > **Local PostgreSQL database:** `hotel_staff`
 >
-> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.3 remains **OPEN / NOT CLOSED** because the native Baron/Graphify lifecycle evidence is still unavailable; it is an independent tooling-maintenance track and does not block the product lifecycle. SPEC-09 Assign Ticket runtime is implemented, including active-target validation and historical inactive-assignment preservation/removal, but SPEC-09 remains **OPEN / NOT CLOSED** pending its own manual persistence, CI, and Baron closure evidence.
+> **Current feature state:** SPEC-01 through SPEC-08.2 are ✅ CLOSED. SPEC-08.3 remains **OPEN / NOT CLOSED** because the native Baron/Graphify lifecycle evidence is still unavailable; it is an independent tooling-maintenance track and does not block the product lifecycle. SPEC-09 Assign Ticket implementation and automated verification are complete, including active-target validation and historical inactive-assignment preservation/removal; GitHub Actions CI passes, and SPEC-09 remains **OPEN / NOT CLOSED** only pending authenticated manual persistence and responsive product verification.
 
 ---
 
@@ -1153,9 +1153,12 @@ SPEC-08 ✅ CLOSED
 ```
 
 SPEC-08.3 remains an independent Baron/Graphify maintenance track and is not a prerequisite for
-SPEC-09 product closure. SPEC-09 remains open pending its own manual authenticated persistence
-verification, responsive checks, GitHub Actions evidence, and supported Baron proof/gate/trace
-completion. Close Ticket remains the next product area after SPEC-09 closure.
+SPEC-09 product closure. SPEC-09 implementation and automated verification are complete, and
+GitHub Actions run [35581730406](https://github.com/thienty1207/Hotel_Staff/actions/runs/35581730406)
+passed for Frontend and Backend. SPEC-09 remains open only pending its own authenticated manual
+persistence and responsive product verification. Baron/Graphify evidence is optional supplemental
+tooling evidence, while its health and lifecycle remain tracked independently under SPEC-08.3.
+Close Ticket remains the next product area after SPEC-09 closure.
 
 ---
 

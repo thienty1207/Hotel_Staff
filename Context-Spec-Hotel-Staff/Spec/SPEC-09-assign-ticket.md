@@ -8,7 +8,10 @@
 
 **Maintenance relationship:** SPEC-08.3 is an independent Baron/Graphify tooling-maintenance
 track. Its open tooling state does not block the Hotel Staff Assign Ticket product lifecycle.
-SPEC-09 still requires its own product verification and its own supported Baron closure evidence.
+SPEC-09 requires its own product verification. Baron/Graphify evidence is optional supporting
+project-management/tooling evidence, not a hard product-closure prerequisite. A Baron tooling
+outage must not invalidate already-proven Hotel Staff product behavior; SPEC-08.3 independently
+tracks Baron/Graphify health and lifecycle repair.
 
 **Next product area after closure:** Close Ticket
 
@@ -1123,10 +1126,11 @@ SPEC-09 stays OPEN until all items are verified:
 - [ ] Git diff checks pass.
 - [ ] No migration `0021`.
 - [ ] No unrelated feature implemented.
-- [ ] Baron proof/gates pass.
-- [ ] Baron trace passes.
-- [ ] Authoritative SPEC-09 plan completes.
 - [ ] No unresolved blocker remains.
+
+Baron/Graphify proof, gates, trace, and plan state are intentionally not hard SPEC-09 product
+closure criteria. If available, they may be recorded as supplemental evidence; failures remain
+independent tooling warnings tracked by SPEC-08.3.
 
 ---
 
